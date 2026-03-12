@@ -16,7 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 隐藏 Streamlit 默认菜单以提升专业感
 hide_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -29,13 +28,10 @@ st.markdown(hide_style, unsafe_allow_html=True)
 # 2. 资源加载 (模型与 SHAP)
 # ===========================
 @st.cache_resource
-@st.cache_resource
 def load_resources():
     try:
-        # 1. 加载模型
         model = joblib.load('model_CatBoost_size13.pkl')
         
-        # 2. 定义特征名称
         feature_names = [
             'sapsii', 'lab_24hour_firstrr', 'lab_24hour_firsthr', 'first_ptt',
             'first_urea_nitrogen', 'lab_24hour_firsttemperaturef', 'first_platelet_count',
@@ -43,10 +39,7 @@ def load_resources():
             'first_white_blood_cells', 'first_rdw', 'first_po2'
         ]
         
-        # 3. 处理 SHAP 解释器对校准模型的兼容性
-        # 如果模型是 CalibratedClassifierCV 包装的，提取内部的 CatBoost 实例
         if hasattr(model, 'calibrated_classifiers_'):
-            # 提取第一个交叉验证折叠中的基础估计器
             base_model = model.calibrated_classifiers_[0].estimator
             explainer = shap.TreeExplainer(base_model)
         else:
@@ -59,6 +52,23 @@ def load_resources():
 
 model, feature_names, explainer = load_resources()
 
+# --- 新增：定义显示名称映射字典 ---
+name_mapping = {
+    'sapsii': 'SAPS II Score',
+    'lab_24hour_firstrr': 'Respiratory Rate',
+    'lab_24hour_firsthr': 'Heart Rate',
+    'first_ptt': 'PTT (sec)',
+    'first_urea_nitrogen': 'BUN (mg/dL)',
+    'lab_24hour_firsttemperaturef': 'Temperature (°F)',
+    'first_platelet_count': 'Platelets',
+    'first_lactate': 'Lactate',
+    'first_glucose': 'Glucose',
+    'lab_24hour_firstspo2': 'SpO2 (%)',
+    'first_white_blood_cells': 'WBC',
+    'first_rdw': 'RDW (%)',
+    'first_po2': 'PO2 (mmHg)'
+}
+
 # ===========================
 # 3. 侧边栏：13个核心特征输入
 # ===========================
@@ -66,8 +76,6 @@ st.sidebar.header("📋 Clinical Parameters")
 
 def user_input_features():
     st.sidebar.subheader("Physiological & Lab Indicators")
-    
-    # 分列排布输入框，减少侧边栏长度
     c1, c2 = st.sidebar.columns(2)
     with c1:
         sapsii = st.number_input("SAPS II Score", 0, 150, 40)
@@ -86,7 +94,6 @@ def user_input_features():
         rdw = st.number_input("RDW (%)", 0.0, 30.0, 14.5)
         po2 = st.number_input("PO2 (mmHg)", 0, 800, 80)
 
-    # 构造 DataFrame
     data = {
         'sapsii': sapsii, 'lab_24hour_firstrr': rr, 'lab_24hour_firsthr': hr,
         'first_ptt': ptt, 'first_urea_nitrogen': bun, 'lab_24hour_firsttemperaturef': temp,
@@ -96,7 +103,6 @@ def user_input_features():
     return pd.DataFrame(data, index=[0])
 
 input_df = user_input_features()
-# 确保列顺序正确
 input_df = input_df[feature_names]
 
 # ===========================
@@ -110,14 +116,15 @@ col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("Patient Clinical Profile")
-    st.dataframe(input_df.T.rename(columns={0: 'Value'}), use_container_width=True)
+    # --- 修改处：在显示时进行重命名，但不改动原始 input_df ---
+    display_df = input_df.T.rename(index=name_mapping)
+    display_df.columns = ['Value']
+    st.table(display_df) # 使用 table 或 dataframe 均可
 
 with col2:
     st.subheader("Model Prediction")
-    # 直接预测，由于模型已在代码外校准，这里输出的是校准后的概率
     prob = model.predict_proba(input_df)[0][1]
 
-    # 颜色显示逻辑
     color = "green" if prob < 0.2 else "orange" if prob < 0.5 else "red"
     st.markdown(f"### Predicted Mortality Risk: <span style='color:{color}'>{prob:.2%}</span>", unsafe_allow_html=True)
 
@@ -135,23 +142,28 @@ with col2:
 st.markdown("---")
 
 # ===========================
-# 5. SHAP 局部解释 (个体瀑布图)
+# 5. SHAP 局部解释
 # ===========================
 st.header("📊 Individual Risk Interpretation (SHAP Waterfall)")
 st.write("This chart shows how each feature pushes the risk higher (red) or lower (blue) for THIS specific patient:")
 
 try:
-    # 计算当前输入数据的 SHAP 值
-    # 对于 CatBoost，explainer 通常返回对应类别的贡献
+    # 为了让 SHAP 图也显示美化后的名字，临时修改副本的列名
+    shap_input = input_df.copy()
+    shap_input.columns = [name_mapping.get(col, col) for col in shap_input.columns]
+    
+    # 重新初始化一个带有美化名称的解释器数据
     shap_values = explainer(input_df)
+    # 将美化后的名字赋给 SHAP 值对象用于绘图
+    shap_values.feature_names = list(shap_input.columns)
     
     fig, ax = plt.subplots(figsize=(10, 6))
-    # 绘制瀑布图（展现单个病人的风险贡献）
     shap.plots.waterfall(shap_values[0], show=False)
     st.pyplot(plt.gcf())
 except Exception as e:
-    st.write("Note: SHAP individual visualization is loading or requires background data compatibility.")
+    st.write(f"Note: SHAP individual visualization error: {e}")
 
 st.markdown("---")
 st.caption("Disclaimer: For research purposes only. Not for direct clinical diagnosis.")
+
 
