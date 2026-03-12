@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 # 1. 页面配置与美化
 # ===========================
 st.set_page_config(
-    page_title="AECOPD Mortality Prediction",
+    page_title="COPD Mortality Prediction",
     page_icon="🫁",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -165,5 +165,6 @@ except Exception as e:
 
 st.markdown("---")
 st.caption("Disclaimer: For research purposes only. Not for direct clinical diagnosis.")
+
 
 
