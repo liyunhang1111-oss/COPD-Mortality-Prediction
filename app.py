@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 # 1. 页面配置与美化
 # ===========================
 st.set_page_config(
-    page_title="COPD Mortality Prediction",
+    page_title="COPD Mortality Prediction (ICU)",
     page_icon="🫁",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -108,8 +108,8 @@ input_df = input_df[feature_names]
 # ===========================
 # 4. 主界面：结果展示
 # ===========================
-st.title("🏥 AECOPD In-hospital Mortality Risk Assessment")
-st.write("Based on Multi-center ICU Big Data and CatBoost Algorithm.")
+st.title("🏥 In-hospital Mortality Risk Assessment for COPD Patients in ICU")
+st.write("A Clinical Decision Support Tool for Patients with COPD Admitted to Intensive Care Units.")
 st.markdown("---")
 
 col1, col2 = st.columns([1, 1])
@@ -165,6 +165,7 @@ except Exception as e:
 
 st.markdown("---")
 st.caption("Disclaimer: For research purposes only. Not for direct clinical diagnosis.")
+
 
 
 
