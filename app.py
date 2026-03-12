@@ -9,29 +9,22 @@ import matplotlib.pyplot as plt
 # 1. 页面基本配置
 st.set_page_config(page_title="AECOPD Risk Assessment", layout="wide")
 
-# 2. 静态资源加载 (加了报错保护)
-@st.cache_resource
-def load_all_res():
+# 2. 资源加载 (移除缓存，强制实时)
+def load_model_and_names():
     try:
         model = joblib.load('model_CatBoost_size13.pkl')
-        # 特征顺序定义
         f_names = [
             'sapsii', 'lab_24hour_firstrr', 'lab_24hour_firsthr', 'first_ptt',
             'first_urea_nitrogen', 'lab_24hour_firsttemperaturef', 'first_platelet_count',
             'first_lactate', 'first_glucose', 'lab_24hour_firstspo2',
             'first_white_blood_cells', 'first_rdw', 'first_po2'
         ]
-        # SHAP 解释器初始化
-        if hasattr(model, 'calibrated_classifiers_'):
-            explainer = shap.TreeExplainer(model.calibrated_classifiers_[0].estimator)
-        else:
-            explainer = shap.TreeExplainer(model)
-        return model, f_names, explainer
+        return model, f_names
     except Exception as e:
-        st.error(f"Resource Load Error: {e}")
-        return None, None, None
+        st.error(f"加载模型失败: {e}")
+        return None, None
 
-model, feature_names, explainer = load_all_res()
+model, feature_names = load_model_and_names()
 
 # 名称显示映射
 name_map = {
@@ -43,11 +36,9 @@ name_map = {
     'first_white_blood_cells': 'WBC', 'first_rdw': 'RDW (%)', 'first_po2': 'PO2 (mmHg)'
 }
 
-# 3. 侧边栏表单 (修正了 Duplicate ID 问题)
+# 3. 侧边栏表单
 st.sidebar.header("📋 Clinical Input")
-
-# 使用 unique_key 确保表单 ID 唯一
-with st.sidebar.form(key="copd_prediction_form_v1"):
+with st.sidebar.form(key="final_form_v2"):
     st.subheader("Physiological Indicators")
     c1, c2 = st.columns(2)
     with c1:
@@ -73,9 +64,9 @@ st.title("🏥 AECOPD In-hospital Mortality Risk Assessment")
 st.markdown("---")
 
 if submit and model:
-    # 构造输入
-    vals = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13]
-    df = pd.DataFrame([vals], columns=feature_names)
+    # 构造输入矩阵
+    vals = np.array([[v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13]])
+    df = pd.DataFrame(vals, columns=feature_names)
     
     col_l, col_r = st.columns([1, 1.2])
     
@@ -85,28 +76,40 @@ if submit and model:
 
     with col_r:
         st.subheader("Model Prediction")
-        # 强制通知用户正在计算
-        st.write(f"🔄 Calculating risk for SAPS II = {v1}...")
         
-        prob = model.predict_proba(df)[0][1]
+        # --- 核心修改：强制重新计算概率 ---
+        prob_array = model.predict_proba(df)
+        prob = float(prob_array[0][1]) # 强制转换为浮点数
+        
         color = "red" if prob > 0.5 else "orange" if prob > 0.2 else "green"
         st.markdown(f"## Risk: <span style='color:{color}'>{prob:.2%}</span>", unsafe_allow_html=True)
         st.progress(prob)
         
-        # 5. SHAP 解释
+        # --- 核心修改：强制重新计算 SHAP ---
         st.markdown("---")
         st.subheader("📊 Feature Contribution (SHAP)")
         try:
+            # 每次点击按钮都重新定义解释器，防止缓存
+            if hasattr(model, 'calibrated_classifiers_'):
+                inner_model = model.calibrated_classifiers_[0].estimator
+            else:
+                inner_model = model
+            
+            explainer = shap.TreeExplainer(inner_model)
+            shap_values = explainer(df)
+            
+            # 替换特征名显示
+            shap_values.feature_names = [name_map.get(n, n) for n in feature_names]
+            
             plt.clf()
-            sh_val = explainer(df)
-            sh_val.feature_names = [name_map.get(n, n) for n in feature_names]
-            fig, ax = plt.subplots(figsize=(10, 6))
-            shap.plots.waterfall(sh_val[0], show=False)
+            fig = plt.figure(figsize=(10, 6))
+            shap.plots.waterfall(shap_values[0], show=False)
             st.pyplot(fig)
-        except:
-            st.warning("Visualization failed, but prediction is complete.")
+        except Exception as e:
+            st.error(f"SHAP 计算失败: {e}")
 else:
-    st.info("👈 Please adjust values in the sidebar and click the button to start.")
+    st.info("👈 请在左侧输入参数并点击 'Run Assessment'")
+
 
 
 
