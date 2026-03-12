@@ -29,12 +29,13 @@ st.markdown(hide_style, unsafe_allow_html=True)
 # 2. 资源加载 (模型与 SHAP)
 # ===========================
 @st.cache_resource
+@st.cache_resource
 def load_resources():
     try:
-        # 加载您最新的 CatBoost 模型 (包含校准层)
+        # 1. 加载模型
         model = joblib.load('model_CatBoost_size13.pkl')
         
-        # 定义最新的 13 个特征名称 (必须与训练时完全一致)
+        # 2. 定义特征名称
         feature_names = [
             'sapsii', 'lab_24hour_firstrr', 'lab_24hour_firsthr', 'first_ptt',
             'first_urea_nitrogen', 'lab_24hour_firsttemperaturef', 'first_platelet_count',
@@ -42,9 +43,12 @@ def load_resources():
             'first_white_blood_cells', 'first_rdw', 'first_po2'
         ]
         
-        # 尝试构建解释器 (注意：校准模型通常需提取 base_estimator 进行 SHAP)
-        if hasattr(model, 'base_estimator'):
-            explainer = shap.TreeExplainer(model.base_estimator)
+        # 3. 处理 SHAP 解释器对校准模型的兼容性
+        # 如果模型是 CalibratedClassifierCV 包装的，提取内部的 CatBoost 实例
+        if hasattr(model, 'calibrated_classifiers_'):
+            # 提取第一个交叉验证折叠中的基础估计器
+            base_model = model.calibrated_classifiers_[0].estimator
+            explainer = shap.TreeExplainer(base_model)
         else:
             explainer = shap.TreeExplainer(model)
             
@@ -150,3 +154,4 @@ except Exception as e:
 
 st.markdown("---")
 st.caption("Disclaimer: For research purposes only. Not for direct clinical diagnosis.")
+
