@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import streadns as st
+import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
@@ -164,6 +164,7 @@ else:
 
 st.markdown("---")
 st.caption("Disclaimer: This tool is for research purposes only and should not replace clinical judgment.")
+
 
 
 
