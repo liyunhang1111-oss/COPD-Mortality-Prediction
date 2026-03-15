@@ -104,8 +104,7 @@ with st.sidebar.form(key="icu_copd_form"):
 # ===========================
 st.title("🏥 In-hospital Mortality Risk Assessment for COPD Patients in ICU")
 st.markdown("""
-    This clinical decision support tool utilizes a **Calibrated CatBoost model** to predict the 
-    in-hospital mortality risk for COPD patients admitted to the ICU, based on clinical data from the first 24 hours.
+    This clinical decision support tool utilizes a Calibrated CatBoost model to predict the in-hospital mortality risk for COPD patients in the ICU, based on the first measured values of clinical variables upon ICU admission.
     """)
 st.markdown("---")
 
@@ -141,7 +140,7 @@ if submit_button and model:
         # 临床解释
         if prob > 0.5:
             st.error("⚠️ **High Risk Group**: Intensive monitoring and aggressive intervention recommended.")
-        elif prob > 0.2:
+        elif prob > 0.1:
             st.warning("🔔 **Moderate Risk Group**: Close clinical observation required.")
         else:
             st.success("✅ **Low Risk Group**: Standard ICU clinical protocol suggested.")
