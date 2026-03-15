@@ -30,23 +30,17 @@ st.markdown("""
 @st.cache_resource
 def load_resources():
     try:
-        # 加载校准后的模型
         model = joblib.load('model_CatBoost_calibrated_final.pkl')
-        
-        # 13个核心特征名称
         f_names = [
             'sapsii', 'lab_24hour_firstrr', 'lab_24hour_firsthr', 'first_ptt',
             'first_urea_nitrogen', 'lab_24hour_firsttemperaturef', 'first_platelet_count',
             'first_lactate', 'first_glucose', 'lab_24hour_firstspo2',
             'first_white_blood_cells', 'first_rdw', 'first_po2'
         ]
-        
-        # 提取校准器内部的基础 CatBoost 模型用于 SHAP 解释
         if hasattr(model, 'calibrated_classifiers_'):
             inner_model = model.calibrated_classifiers_[0].estimator
         else:
             inner_model = model
-            
         explainer = shap.TreeExplainer(inner_model)
         return model, f_names, explainer
     except Exception as e:
@@ -55,7 +49,6 @@ def load_resources():
 
 model, feature_names, explainer = load_resources()
 
-# 临床指标名称映射
 name_map = {
     'sapsii': 'SAPS II Score',
     'lab_24hour_firstrr': 'Respiratory Rate',
@@ -110,11 +103,10 @@ st.markdown("""
 st.markdown("---")
 
 if submit_button and model:
-    # 构造实时输入数据
     input_vals = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13]
     input_df = pd.DataFrame([input_vals], columns=feature_names)
     
-    # 执行实时预测（校准后概率）
+    # 执行实时预测
     prob = model.predict_proba(input_df)[0][1]
     
     col_left, col_right = st.columns([1, 1.2])
@@ -128,21 +120,24 @@ if submit_button and model:
     with col_right:
         st.subheader("Risk Prediction Result")
         
-        # --- 核心改进：风险等级判定逻辑与配色 ---
-        if prob > 0.5:
+        # --- 核心改进：根据您的临床建议修改逻辑 ---
+        if prob > 0.50:
             risk_cat = "High Risk"
             risk_color = "#e74c3c"  # 红色
-            risk_msg = "⚠️ **High Risk Group**: Intensive monitoring and aggressive intervention recommended."
+            # 高风险文案
+            risk_msg = "⚠️ **High Risk Group**: Consider escalating treatment strategies and strengthening communication with family members."
             st_func = st.error
-        elif 0.1 <= prob <= 0.5:
+        elif 0.10 <= prob <= 0.50:
             risk_cat = "Moderate Risk"
             risk_color = "#f39c12"  # 橙色
-            risk_msg = "🔔 **Moderate Risk Group**: Close clinical observation required."
+            # 中风险文案
+            risk_msg = "🔔 **Moderate Risk Group**: Enhance monitoring and perform dynamic re-evaluations of key clinical indicators."
             st_func = st.warning
         else:
             risk_cat = "Low Risk"
             risk_color = "#27ae60"  # 绿色
-            risk_msg = "✅ **Low Risk Group**: Standard ICU clinical protocol suggested."
+            # 低风险文案
+            risk_msg = "✅ **Low Risk Group**: Standard ICU clinical protocol and routine monitoring are recommended."
             st_func = st.success
 
         # 展示概率与分类
@@ -150,7 +145,7 @@ if submit_button and model:
         st.markdown(f"### Classification: <span style='color:{risk_color}'>{risk_cat}</span>", unsafe_allow_html=True)
         st.progress(prob)
         
-        # 临床建议文案
+        # 临床建议文案显示
         st_func(risk_msg)
         
         st.caption("Probability calibrated via Platt Scaling. Model validated on MIMIC-IV, MIMIC-III, and eICU cohorts.")
